@@ -6,7 +6,7 @@ We benchmark modern algorithms across diverse continuous control environments, f
 
 ---
 
-## 📌 Projects
+## Projects
 
 ### Project 2: Online Goal-Conditioned Reinforcement Learning
 - **Benchmark:** JaxGCRL  
@@ -37,7 +37,7 @@ We benchmark modern algorithms across diverse continuous control environments, f
 
 ---
 
-## 🎯 Problem Formulation
+## Problem Formulation
 
 We study **goal-conditioned policies** of the form:
 
@@ -57,7 +57,7 @@ The objective is to learn policies that:
 
 ---
 
-## 🧪 Experimental Setup
+## Experimental Setup
 
 We evaluate algorithms across:
 - Multiple environments (locomotion + manipulation)
