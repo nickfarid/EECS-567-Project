@@ -1,4 +1,4 @@
-# EECS 567 Final Project (Winter 2026)
+# EECS 567 Final Project (Winter 2026) - Team 3
 
 This repository contains the implementation and evaluation of **goal-conditioned reinforcement learning (GCRL)** methods in both **online** and **offline** settings.
 
