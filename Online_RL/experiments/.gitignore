@@ -1,0 +1,13 @@
+# Large/generated outputs
+results/
+figures/
+checkpoints/
+*.out
+*.err
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
