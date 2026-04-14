@@ -73,10 +73,11 @@ def parse_args() -> argparse.Namespace:
         help="Environment name (see JaxGCRL for details)",
     )
     p.add_argument("--seed",            type=int, default=1)
-    p.add_argument("--total_env_steps", type=int, default=10_000_000)
-    p.add_argument("--num_envs",        type=int, default=512,
-                   help="Parallel envs during training (default 512).")
-    p.add_argument("--num_evals",       type=int, default=50,
+    p.add_argument("--total_env_steps", type=int, default=50_000_000)
+    p.add_argument("--num_envs",        type=int, default=0,
+                   help="Parallel envs (0 = auto from paper: PPO→4096, "
+                        "humanoid→512, others→1024).")
+    p.add_argument("--num_evals",       type=int, default=200,
                    help="Evaluation checkpoints during training.")
     return p.parse_args()
 
@@ -86,16 +87,27 @@ def parse_args() -> argparse.Namespace:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def make_agent(algo: str):
-    """Return an agent instance with paper-matching hyperparameters."""
+    """Return an agent instance with paper-matching hyperparameters.
+
+    Reference: JaxGCRL paper (Bortkiewicz et al., ICLR 2025)
+      - Table 2 (Appendix B.3): CRL benchmark parameters.
+      - Section B.2: "discount factor of 0.99 for all methods except PPO,
+        for which we use a discount factor of 0.97."
+      - Section B.2: "1024 parallel environments for all methods except for
+        PPO, where we use 4096 parallel environments."
+      - Section 5.1: SAC+HER and TD3+HER use final-strategy relabelling.
+    """
     from jaxgcrl.agents.crl import CRL
     from jaxgcrl.agents.ppo import PPO
     from jaxgcrl.agents.sac import SAC
     from jaxgcrl.agents.td3 import TD3
 
     if algo == "crl":
-        # Hyperparams from JaxGCRL paper / train.sh reference script
+        # Paper Table 2: policy_lr=6e-4, critic_lr=3e-4,
+        # contrastive_loss=sym_infonce, energy=L2 (= code "norm"),
+        # discounting=0.99, logsumexp_penalty=0.1
         return CRL(
-            policy_lr=3e-4,
+            policy_lr=6e-4,
             critic_lr=3e-4,
             alpha_lr=3e-4,
             batch_size=256,
@@ -104,23 +116,25 @@ def make_agent(algo: str):
             max_replay_size=10_000,
             min_replay_size=1_000,
             unroll_length=62,
-            contrastive_loss_fn="bwd_infonce",
+            contrastive_loss_fn="sym_infonce",
             energy_fn="norm",
+            logsumexp_penalty_coeff=0.1,
             h_dim=256,
             n_hidden=2,
             repr_dim=64,
         )
 
     elif algo == "sac":
-        # Goal-conditioned SAC with Hindsight Experience Replay
+        # Paper Section B.2: discounting=0.99 for all methods except PPO.
+        # SAC + HER with final-strategy relabelling (Section 5.1).
         return SAC(
             learning_rate=1e-4,
             discounting=0.99,
             batch_size=256,
             train_step_multiplier=1,
             max_replay_size=10_000,
-            min_replay_size=0,
-            unroll_length=50,
+            min_replay_size=1000,
+            unroll_length=62,
             use_her=True,
             h_dim=256,
             n_hidden=2,
@@ -128,15 +142,15 @@ def make_agent(algo: str):
         )
 
     elif algo == "ppo":
-        # Goal-conditioned PPO (on-policy)
-        # Constraint: batch_size * num_minibatches must be divisible by num_envs
-        # 32 * 16 = 512, so num_envs=512 works perfectly.
+        # Paper Section B.2: discounting=0.97 for PPO, 4096 parallel envs.
+        # Constraint: batch_size * num_minibatches % num_envs == 0
+        # With num_envs=4096: 256 * 16 = 4096 ✓
         return PPO(
             learning_rate=3e-4,
             entropy_cost=1e-4,
             discounting=0.97,
             unroll_length=10,
-            batch_size=32,
+            batch_size=256,
             num_minibatches=16,
             num_updates_per_batch=2,
             normalize_observations=True,
@@ -148,15 +162,16 @@ def make_agent(algo: str):
         )
 
     elif algo == "td3":
-        # Goal-conditioned TD3 with Hindsight Experience Replay
+        # Paper Section B.2: discounting=0.99 for all methods except PPO.
+        # TD3 + HER with final-strategy relabelling (Section 5.1).
         return TD3(
             learning_rate=3e-4,
             discounting=0.99,
             batch_size=256,
             train_step_multiplier=1,
             max_replay_size=10_000,
-            min_replay_size=0,
-            unroll_length=50,
+            min_replay_size=1000,
+            unroll_length=62,
             use_her=True,
             tau=0.005,
             policy_delay=2,
@@ -166,6 +181,32 @@ def make_agent(algo: str):
         )
 
     raise ValueError(f"Unknown algo: {algo!r}")
+
+
+def _paper_num_envs(algo: str, env: str) -> int:
+    """Return the number of parallel envs matching the paper (Section B.2, Table 2).
+
+    Paper:
+      - PPO: 4096 parallel environments.
+      - All other methods: 1024, except humanoid variants which use 512.
+    """
+    if algo == "ppo":
+        return 4096
+
+    # Table 2 footnote: "512 for humanoid"
+    # NOTE: 512 causes OOM on A100-40GB for humanoid (obs_dim=292 → replay
+    # buffer alone is 5.6 GiB).  Use 256 to fit in 40 GiB GPU memory.
+    humanoid_envs = {
+        "humanoid", "humanoid_u_maze", "humanoid_big_maze", "humanoid_hardest_maze",
+    }
+    ant_envs = {
+        "ant_push"}
+    if env in humanoid_envs:
+        return 256
+    if env in ant_envs:
+        return 256
+
+    return 1024
 
 
 def make_run_config(
@@ -179,13 +220,19 @@ def make_run_config(
     """Return a RunConfig dataclass instance."""
     from jaxgcrl.utils.config import RunConfig
 
-    # PPO constraint: batch_size * num_minibatches (= 512) % num_envs == 0
-    # Use 512 envs for PPO; also use 512 for off-policy agents.
+    # Use paper-matching num_envs unless explicitly overridden via CLI
     _num_envs = num_envs
+    _episode_length = 1000
+
+    # Reduce eval envs for humanoid to save GPU memory
+    humanoid_envs = {
+        "humanoid", "humanoid_u_maze", "humanoid_big_maze", "humanoid_hardest_maze",
+    }
+    _num_eval_envs = 128 if env in humanoid_envs else 256
 
     # CRL check: num_envs * (episode_length - 1) % batch_size == 0
-    # 512 * 999 = 511488; 511488 % 256 = 0  ✓
-    _episode_length = 1000
+    # 1024 * 999 = 1,022,976; 1,022,976 % 256 = 0  ✓
+    # 512  * 999 = 511,488;   511,488   % 256 = 0  ✓  (humanoid)
 
     # CRL computes:
     #   num_training_steps_per_epoch = (total_env_steps - num_prefill_env_steps)
@@ -198,18 +245,18 @@ def make_run_config(
     if algo == "crl":
         _unroll_length      = 62          # must match make_agent CRL config
         _min_replay_size    = 1_000       # must match make_agent CRL config
-        prefill             = _min_replay_size * _num_envs          # 512_000
-        actor_chunk         = _num_envs * _unroll_length            # 31_744
-        D                   = num_evals * actor_chunk               # 1_587_200
+        prefill             = _min_replay_size * _num_envs
+        actor_chunk         = _num_envs * _unroll_length
+        D                   = num_evals * actor_chunk
         k                   = math.ceil((total_env_steps - prefill) / D)
-        _total_env_steps    = prefill + k * D                       # ≥ 10_000_000
+        _total_env_steps    = prefill + k * D
 
     return RunConfig(
         env=env,
         total_env_steps=_total_env_steps,
         episode_length=_episode_length,
         num_envs=_num_envs,
-        num_eval_envs=128,
+        num_eval_envs=_num_eval_envs,
         action_repeat=1,
         num_evals=num_evals,
         seed=seed,
@@ -338,6 +385,9 @@ class CSVProgressCallback:
 def main():
     args = parse_args()
 
+    # ── Resolve num_envs: 0 means "use paper defaults" ────────────────────────
+    num_envs = args.num_envs if args.num_envs > 0 else _paper_num_envs(args.algo, args.env)
+
     # ── Print experiment header ───────────────────────────────────────────────
     log.info("=" * 68)
     log.info(f"  GCRL Baseline Experiment")
@@ -346,7 +396,7 @@ def main():
     log.info(f"  environment  : {args.env}")
     log.info(f"  seed         : {args.seed}")
     log.info(f"  total steps  : {args.total_env_steps:,}")
-    log.info(f"  num envs     : {args.num_envs}")
+    log.info(f"  num envs     : {num_envs}")
     log.info(f"  num evals    : {args.num_evals}")
     log.info(f"  started at   : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     log.info("=" * 68)
@@ -372,7 +422,7 @@ def main():
         env=args.env,
         seed=args.seed,
         total_env_steps=args.total_env_steps,
-        num_envs=args.num_envs,
+        num_envs=num_envs,
         num_evals=args.num_evals,
     )
 
@@ -427,8 +477,8 @@ def main():
         "algo_label":       algo_label,
         "env":              args.env,
         "seed":             args.seed,
-        "total_env_steps":  args.total_env_steps,
-        "num_envs":         args.num_envs,
+        "total_env_steps":  run_config.total_env_steps,
+        "num_envs":         num_envs,
         "num_evals":        args.num_evals,
         "wall_time_min":    round(wall_min, 2),
         "eval_calls":       progress_fn.call_count,
