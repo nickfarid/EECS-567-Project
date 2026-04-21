@@ -6,7 +6,7 @@
 # NOTE: If you run into OOM issues, try reducing --num_envs
 
 eval "$(conda shell.bash hook)"
-conda activate contrastive_rl
+conda activate "${JAXGCRL_CONDA_ENV:-jaxgcrl}"
 
 method=crl
 env=ant
