@@ -24,18 +24,22 @@ PROFILES = {
         "seeds": (0,),
         "total_env_steps": 1_000_000,
         "num_evals": 10,
+        # Disable expensive HTML rollout rendering for benchmark jobs.
+        "visualization_interval": 11,
     },
     "pilot": {
         "envs": FULL_ENVS,
         "seeds": (0,),
         "total_env_steps": 10_000_000,
         "num_evals": 50,
+        "visualization_interval": 51,
     },
     "final": {
         "envs": FULL_ENVS,
         "seeds": (0, 1, 2, 3, 4),
         "total_env_steps": 50_000_000,
         "num_evals": 200,
+        "visualization_interval": 201,
     },
 }
 
@@ -55,6 +59,8 @@ def build_command(profile: str, agent: str, env: str, seed: int, log_wandb: bool
         str(profile_config["total_env_steps"]),
         "--num_evals",
         str(profile_config["num_evals"]),
+        "--visualization_interval",
+        str(profile_config["visualization_interval"]),
         "--exp_name",
         exp_name,
         "--wandb_group",
