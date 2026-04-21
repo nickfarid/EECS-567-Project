@@ -29,5 +29,6 @@ ARRAY_END="$((ARRAY_COUNT - 1))"
 
 echo "Submitting ${ARRAY_COUNT} tasks for profile ${PROFILE}"
 sbatch --array="0-${ARRAY_END}" \
+  --chdir="${REPO_ROOT}" \
   --export=ALL,PROFILE="${PROFILE}",LOG_WANDB="${LOG_WANDB}" \
   scripts/slurm_benchmark_ppo_vs_contrastive.sh

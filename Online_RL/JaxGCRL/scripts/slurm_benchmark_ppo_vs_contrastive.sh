@@ -14,7 +14,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="${SLURM_SUBMIT_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 PROFILE="${PROFILE:-pilot}"
 
 mkdir -p "/home/${USER}/logs"
@@ -37,4 +37,4 @@ if [[ "${LOG_WANDB:-0}" == "1" ]]; then
   benchmark_args+=(--log-wandb)
 fi
 
-python3 scripts/ppo_benchmark.py "${benchmark_args[@]}"
+python3 "${REPO_ROOT}/scripts/ppo_benchmark.py" "${benchmark_args[@]}"

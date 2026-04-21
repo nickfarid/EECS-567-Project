@@ -14,7 +14,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="${SLURM_SUBMIT_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 
 mkdir -p "/home/${USER}/logs"
 
@@ -29,6 +29,6 @@ cd "${REPO_ROOT}"
 
 for agent in ppo ppo_contrastive; do
   for env in reacher ant; do
-    python3 scripts/ppo_benchmark.py --profile smoke --agent "${agent}" --env "${env}" --seed 0
+    python3 "${REPO_ROOT}/scripts/ppo_benchmark.py" --profile smoke --agent "${agent}" --env "${env}" --seed 0
   done
 done
