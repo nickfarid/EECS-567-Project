@@ -81,4 +81,4 @@ export JAXGCRL_CONDA_ENV=my_env_name
 
 The helper scripts default to local-only logging. Pass `--log-wandb` to opt in.
 
-Benchmark helper profiles also disable HTML rollout rendering to reduce runtime on smoke, pilot, and final jobs. Direct `python run.py ...` invocations still use the repo default render interval unless you pass `--visualization_interval` explicitly.
+Benchmark helper profiles now pass `--disable-render`, so smoke, pilot, and final jobs skip HTML rollout rendering entirely. Direct `python run.py ...` invocations still use the repo default render behavior unless you pass `--disable-render`.

@@ -485,6 +485,7 @@ class PPO:
                     )
                 ),
                 unwrapped_env,
+                do_render=not config.disable_render,
             )
 
         training_metrics = {}
@@ -530,7 +531,9 @@ class PPO:
                         ),
                         training_metrics,
                     )
-                    do_render = (eval_epoch_num % config.visualization_interval) == 0
+                    do_render = (not config.disable_render) and (
+                        (eval_epoch_num % config.visualization_interval) == 0
+                    )
                     progress_fn(
                         current_step,
                         metrics,

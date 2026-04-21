@@ -434,6 +434,7 @@ class PPOContrastive:
                 make_policy,
                 _unpmap((training_state.normalizer_params, training_state.params)),
                 unwrapped_env,
+                do_render=not config.disable_render,
             )
 
         training_metrics = {}
@@ -462,7 +463,9 @@ class PPOContrastive:
                         _unpmap((training_state.normalizer_params, training_state.params)),
                         training_metrics,
                     )
-                    do_render = (eval_epoch_num % config.visualization_interval) == 0
+                    do_render = (not config.disable_render) and (
+                        (eval_epoch_num % config.visualization_interval) == 0
+                    )
                     progress_fn(
                         current_step,
                         metrics,
