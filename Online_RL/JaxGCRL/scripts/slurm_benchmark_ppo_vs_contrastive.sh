@@ -11,7 +11,7 @@
 #SBATCH --output=/home/%u/logs/ppo_benchmark-%A_%a.out
 #SBATCH --error=/home/%u/logs/ppo_benchmark-%A_%a.err
 
-set -euo pipefail
+set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -21,6 +21,7 @@ mkdir -p "/home/${USER}/logs"
 
 eval "$(conda shell.bash hook)"
 conda activate "${JAXGCRL_CONDA_ENV:-jaxgcrl}"
+set -u
 
 export MUJOCO_GL=egl
 export XLA_PYTHON_CLIENT_MEM_FRACTION=0.95
