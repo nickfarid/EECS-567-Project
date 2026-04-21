@@ -81,11 +81,19 @@ def main(config: Config):
         "eval/episode_success_easy",
         "eval/episode_success_hard",
         "training/actor_loss",
+        "training/contrastive_accuracy",
+        "training/contrastive_loss",
+        "training/contrastive_pairs",
+        "training/entropy_loss",
         "training/log_alpha",
         "training/alpha_loss",
         "training/critic_loss",
         "training/entropy",
+        "training/kl_mean",
+        "training/policy_loss",
         "training/sps",
+        "training/total_loss",
+        "training/v_loss",
     ]
 
     metrics_recorder = MetricsRecorder(

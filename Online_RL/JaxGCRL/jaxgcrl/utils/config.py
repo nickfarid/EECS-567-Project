@@ -1,13 +1,18 @@
-from typing import Literal, Optional, Union
+from typing import Annotated, Literal, Optional, Union
 
+import tyro
 from flax.struct import dataclass
 
-from jaxgcrl.agents import CRL, PPO, SAC, TD3
+from jaxgcrl.agents import CRL, PPO, PPOContrastive, SAC, TD3
 
 from .env import legal_envs
 
 # agent configurations
-AgentConfig = Union[CRL, PPO, SAC, TD3]
+PPOContrastiveConfig = Annotated[
+    PPOContrastive,
+    tyro.conf.subcommand(name="ppo_contrastive"),
+]
+AgentConfig = Union[CRL, PPO, PPOContrastiveConfig, SAC, TD3]
 
 
 @dataclass
